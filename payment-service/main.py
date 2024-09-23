@@ -48,12 +48,6 @@ def confirm_payment_intent(payment_intent: str):
                             "return_url": "https://www.example.com",
                         },
                     )
-                    d.raise_workflow_event(
-                        instance_id=payment_model.instance_id,
-                        workflow_component="dapr",
-                        event_name="approve_payment",
-                        event_data={"approval": True},
-                    )
 
                     payment_model.status = payment_confirmation["status"]
                     return {"status_code": 200, "body": payment_model.model_dump_json()}
@@ -86,12 +80,6 @@ def cancel_payment_intent(payment_intent: str):
                         state_metadata={"contentType": "application/json"},
                     )
 
-                    d.raise_workflow_event(
-                        instance_id=payment_model.instance_id,
-                        workflow_component="dapr",
-                        event_name="approve_payment",
-                        event_data={"approval": False},
-                    )
                     return {"status_code": 200, "body": payment_model.model_dump_json()}
 
                 except StripeError as err:
