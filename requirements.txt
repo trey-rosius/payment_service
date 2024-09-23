@@ -1,0 +1,12 @@
+dapr==1.14.0
+dapr-ext-workflow>=0.5.0
+fastapi==0.109.1
+uvicorn==0.23.2
+grpcio>=1.65.4
+pydantic==2.4.2
+requests==2.31.0
+uvicorn==0.23.2
+stripe==9.9.0
+black==24.8.0
+ruff==0.6.7
+pre-commit==3.8.0
