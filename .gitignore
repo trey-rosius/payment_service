@@ -4,7 +4,7 @@
 
 .idea
 .venv
-dev-kv-project-fbe8f200-4.yaml
+dev-payment.yaml
 # Diagrid
 # dev file
 */dev-*.yaml
@@ -12,6 +12,7 @@ dev-kv-project-fbe8f200-4.yaml
 __pycache__/
 *.pyc
 */venv
+*.yaml
 # VS Code files for those working on multiple tools
 .vscode/*
 !.vscode/settings.json
