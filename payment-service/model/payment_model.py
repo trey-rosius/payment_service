@@ -5,10 +5,9 @@ from pydantic import BaseModel
 
 
 class Status(str, Enum):
-    IN_PROGRESS = "IN_PROGRESS"
-    FAILED = "FAILED"
-    SUCCESS = "SUCCESS"
-    CANCELLED = "CANCELLED"
+    IN_PROGRESS = "in_progress"
+    SUCCEEDED = "succeeded"
+    CANCELLED = "cancelled"
 
 
 class PaymentModel(BaseModel):

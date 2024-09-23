@@ -37,7 +37,8 @@ def confirm_payment_intent(payment_intent: str):
 
         try:
             kv = d.get_state(payments_db, payment_intent)
-            print(f"value of kv is {kv.data}")
+            # state_metadata = {"contentType": "application/json"}
+            logging.info(f"value of kv is {kv.data}")
             if kv.data:
                 payment_model = PaymentModel(**json.loads(kv.data))
                 try:
@@ -50,7 +51,12 @@ def confirm_payment_intent(payment_intent: str):
                     )
 
                     payment_model.status = payment_confirmation["status"]
-                    return {"status_code": 200, "body": payment_model.model_dump_json()}
+                    d.save_state(
+                        store_name=payments_db,
+                        key=payment_model.id,
+                        value=payment_model.model_dump_json(),
+                    )
+                    return {"status_code": 200, "body": payment_model.model_dump()}
 
                 except StripeError as err:
                     raise HTTPException(status_code=500, detail=err.user_message)
@@ -77,10 +83,9 @@ def cancel_payment_intent(payment_intent: str):
                         store_name=payments_db,
                         key=payment_model.id,
                         value=payment_model.model_dump_json(),
-                        state_metadata={"contentType": "application/json"},
                     )
 
-                    return {"status_code": 200, "body": payment_model.model_dump_json()}
+                    return {"status_code": 200, "body": payment_model.model_dump()}
 
                 except StripeError as err:
                     raise HTTPException(status_code=500, detail=err.user_message)
@@ -89,27 +94,40 @@ def cancel_payment_intent(payment_intent: str):
             raise HTTPException(status_code=500, detail=err.details())
 
 
+@app.get("/v1.0/payments/{payment_id}")
+def get_payment(payment_id: str):
+    with DaprClient() as d:
+        try:
+            logging.info(f"cancel payment id: {payment_id}.")
+            kv = d.get_state(payments_db, payment_id)
+            logging.info(f"value of kv is {kv.data}")
+
+            payment_model = PaymentModel(**json.loads(kv.data))
+            return payment_model
+        except grpc.RpcError as err:
+            raise HTTPException(status_code=500, detail=err.details())
+
+
 @app.post("/v1.0/payments/create")
 def create_payment_intent(payment: PaymentModel):
     with (DaprClient() as d):
         try:
-            print(f"create payment intent: Received input: {payment.model_dump()}.")
+            logging.info(
+                f"create payment intent: Received input: {payment.model_dump()}."
+            )
             payment_intent = client.payment_intents.create(
                 params={"amount": payment.amount, "currency": "usd"}
             )
             payment.id = payment_intent.id
             payment.status = Status.IN_PROGRESS
-            payment.instance_id = payment_intent.id
+            payment.payment_intent_id = payment_intent.id
+            logging.info(f"created payment intent: {payment.model_dump()}")
             d.save_state(
                 store_name=payments_db,
                 key=payment.id,
                 value=payment.model_dump_json(),
-                state_metadata={"contentType": "application/json"},
             )
-
-            print(f"created payment intent: {payment.model_dump()}")
-
-            return {"status_code": 200, "body": payment.model_dump_json()}
+            return {"status_code": 200, "body": payment.model_dump()}
 
         except grpc.RpcError as err:
             print(f"Error={err.details()}")
