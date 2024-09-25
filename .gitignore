@@ -12,7 +12,6 @@ dev-payment.yaml
 __pycache__/
 *.pyc
 */venv
-*.yaml
 *.yml
 # VS Code files for those working on multiple tools
 .vscode/*
