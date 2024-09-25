@@ -67,15 +67,15 @@ jobs:
             fi
 
             echo "API Token for $service_name: $api_token"
-            strype_key=${{secrets.STRIPE_SECRET_KEY}}
+            stripe_key=${{secrets.STRIPE_SECRET_KEY}}
 
             # Create a JSON object with the service, apiToken, http_url, and grpc_url
             json_object=$(jq -n --arg service "$service_name" \
                                --arg apiToken "$api_token" \
                                --arg http_url "$http_url" \
                                --arg grpc_url "$grpc_url" \
-                               --arg strype_key "$strype_key" \
-                               '{service: $service, apiToken: $apiToken, http_url: $http_url, grpc_url: $grpc_url, strype_key:"$strype_key"}')
+                               --arg stripe_key "$stripe_key" \
+                               '{service: $service, apiToken: $apiToken, http_url: $http_url, grpc_url: $grpc_url, stripe_key:$stripe_key}')
 
             # Add the JSON object to the array
             json_array=$(echo $json_array | jq --argjson obj "$json_object" '. += [$obj]')
