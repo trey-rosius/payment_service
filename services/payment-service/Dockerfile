@@ -14,9 +14,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV    DAPR_APP_ID=payment-service
 ENV    DAPR_CLIENT_TIMEOUT_SECONDS=10
 ENV    DAPR_PAYMENTS_DB=payments-db
-
-ENV    DAPR_GRPC_ENDPOINT=https://grpc-prj268301.api.cloud.diagrid.io:443
-ENV    DAPR_HTTP_ENDPOINT=https://http-prj268301.api.cloud.diagrid.io
 # Keeps Python from buffering stdout and stderr to avoid situations where
 # the application crashes without emitting any logs due to buffering.
 ENV PYTHONUNBUFFERED=1

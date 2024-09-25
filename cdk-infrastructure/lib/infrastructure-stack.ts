@@ -11,8 +11,8 @@ import { HttpAlbIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { readFileSync } from "fs";
 import { ServiceApiToken } from "./service-api-token";
 
-export class CdkInfraStack extends cdk.Stack {
-  PREFIX = "GROUP-CHAT";
+export class InfrastructureStack extends cdk.Stack {
+  PREFIX = "PAYMENT-SERVICE";
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -30,7 +30,7 @@ export class CdkInfraStack extends cdk.Stack {
     });
     // Create Log Group
     const vpcLogGroup = new logs.LogGroup(this, "VPCLogGroup", {
-      logGroupName: "ecs-cdk-vpc-flow",
+      logGroupName: "payments-service-vpc-flow",
       retention: logs.RetentionDays.ONE_DAY,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -98,6 +98,9 @@ export class CdkInfraStack extends cdk.Stack {
           image: ecs.ContainerImage.fromEcrRepository(serviceRepo, "latest"),
           environment: {
             DAPR_API_TOKEN: service.apiToken,
+            DAPR_GRPC_ENDPOINT: service.grpc_url,
+            DAPR_HTTP_ENDPOINT: service.http_url,
+            STRIPE_SECRET_KEY: service.strype_key,
           },
 
           logging: ecs.LogDrivers.awsLogs({
@@ -108,18 +111,7 @@ export class CdkInfraStack extends cdk.Stack {
       );
 
       container.addPortMappings({
-        containerPort:
-          service.service == "user-service"
-            ? 5006
-            : service.service == "group-service"
-            ? 5002
-            : service.service == "message-service"
-            ? 5001
-            : service.service == "read-receipts-service"
-            ? 5005
-            : service.service == "typing-indicator-service"
-            ? 5003
-            : 5004,
+        containerPort: 5001,
         protocol: ecs.Protocol.TCP,
       });
 

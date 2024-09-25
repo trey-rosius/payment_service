@@ -20,7 +20,7 @@ export class RepositoryStack extends cdk.Stack {
       );
 
     services.forEach((service) => {
-      new ecr.Repository(this, `${service}Repository`, {
+      new ecr.Repository(this, `${service}-Repository`, {
         repositoryName: service.toLowerCase(), // ECR repository names must be lowercase
         removalPolicy: cdk.RemovalPolicy.DESTROY, // Automatically delete the repo when the stack is deleted
       });
