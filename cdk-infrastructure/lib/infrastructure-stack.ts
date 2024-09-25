@@ -100,7 +100,7 @@ export class InfrastructureStack extends cdk.Stack {
             DAPR_API_TOKEN: service.apiToken,
             DAPR_GRPC_ENDPOINT: service.grpc_url,
             DAPR_HTTP_ENDPOINT: service.http_url,
-            STRIPE_SECRET_KEY: service.strype_key,
+            STRIPE_SECRET_KEY: service.stripe_key,
           },
 
           logging: ecs.LogDrivers.awsLogs({
