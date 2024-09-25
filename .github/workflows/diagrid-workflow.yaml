@@ -73,8 +73,8 @@ jobs:
                                --arg apiToken "$api_token" \
                                --arg http_url "$http_url" \
                                --arg grpc_url "$grpc_url" \
-                               --arg strype_key "${{secrets.STRIPE_SECRET_KEY}}" \
-                               '{service: $service, apiToken: $apiToken, http_url: $http_url, grpc_url: $grpc_url, strype_key:${{secrets.STRIPE_SECRET_KEY}}}')
+                               --arg strype_key "strype-key" \
+                               '{service: $service, apiToken: $apiToken, http_url: $http_url, grpc_url: $grpc_url, strype_key:"strype-key"}')
 
             # Add the JSON object to the array
             json_array=$(echo $json_array | jq --argjson obj "$json_object" '. += [$obj]')
