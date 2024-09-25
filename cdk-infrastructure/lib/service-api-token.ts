@@ -3,7 +3,7 @@ export class ServiceApiToken {
   apiToken: string;
   http_url: string;
   grpc_url: string;
-  strype_key: string;
+  stripe_key: string;
 
   constructor(
     service: string,
