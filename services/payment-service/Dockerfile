@@ -13,7 +13,7 @@ FROM --platform=linux/amd64 python:${PYTHON_VERSION}-slim as base
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV    DAPR_APP_ID=payment-service
 ENV    DAPR_CLIENT_TIMEOUT_SECONDS=10
-ENV    DAPR_PAYMENTS_DB=payments-db
+ENV    DAPR_PAYMENTS_DB=payments-service-db
 # Keeps Python from buffering stdout and stderr to avoid situations where
 # the application crashes without emitting any logs due to buffering.
 ENV PYTHONUNBUFFERED=1

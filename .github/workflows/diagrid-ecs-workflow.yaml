@@ -1,0 +1,199 @@
+name: Deploy the CDK Infrastructure and Build the Catalyst Service Images
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  upload-to-ecs:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js environment and cache dependencies
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'  # Specify the Node.js version
+          cache: 'npm'        # Cache npm dependencies
+
+      # Step 3: Install CDK and other dependencies using npm ci for a clean install
+      - name: Install dependencies
+        working-directory: ./cdk-infrastructure
+        run: npm ci
+
+      # Step 4: Install Diagrid CLI
+      - name: Install Diagrid CLI
+        run: |
+          curl -fsSL https://downloads.diagrid.io/cli/install.sh | bash
+          sudo mv ./diagrid /usr/local/bin
+
+      # Step 5: Log into Diagrid using the API key from secrets
+      - name: Log Into Diagrid
+        run: diagrid login --api-key "${{ secrets.DIAGRID_API_KEY }}"
+
+      # Step 6: Verify Diagrid CLI version
+      - name: Diagrid Version
+        run: diagrid version
+
+      # Step 7: Set the Diagrid project to use
+      - name: Assign Diagrid Project
+        run: diagrid project use "${{ secrets.DIAGRID_PROJECT }}" --api-key "${{ secrets.DIAGRID_API_KEY }}"
+
+      # Step 8: Retrieve API tokens and URLs for all project services
+      - name: Retrieve API tokens and URLs for services
+        run: |
+          set -e  # Exit immediately if a command exits with a non-zero status
+          json_array="[]"
+          diagrid_project_output=$(diagrid project get "${{ secrets.DIAGRID_PROJECT }}" -o json)
+          http_url=$(echo "$diagrid_project_output" | jq -r '.status.http.url')
+          grpc_url=$(echo "$diagrid_project_output" | jq -r '.status.grpc.url')
+
+          for service in ./services/*/ ; do
+            service_name=$(basename "$service")
+
+            if ! diagrid_output=$(diagrid appid get "$service_name" -o json 2>/dev/null); then
+              echo "Error: Failed to retrieve Diagrid app identity for $service_name"
+              continue
+            fi
+
+            api_token=$(echo "$diagrid_output" | jq -r '.status.apiToken')
+
+            if [ -z "$api_token" ] || [ "$api_token" == "null" ]; then
+              echo "Error: No valid apiToken found for $service_name"
+              continue
+            fi
+
+            echo "API Token for $service_name: $api_token"
+            stripe_key="${{ secrets.STRIPE_SECRET_KEY }}"
+
+            json_object=$(jq -n \
+              --arg service "$service_name" \
+              --arg apiToken "$api_token" \
+              --arg http_url "$http_url" \
+              --arg grpc_url "$grpc_url" \
+              --arg stripe_key "$stripe_key" \
+              '{service: $service, apiToken: $apiToken, http_url: $http_url, grpc_url: $grpc_url, stripe_key: $stripe_key}')
+
+            json_array=$(echo "$json_array" | jq --argjson obj "$json_object" '. += [$obj]')
+          done
+
+          echo "$json_array" | jq . > cdk-infrastructure/service_tokens.json
+          echo "service_tokens=$json_array" >> $GITHUB_ENV
+
+          cat cdk-infrastructure/service_tokens.json
+
+      # Step 9: Upload service_tokens.json as an artifact for use in later steps
+      - name: Upload service_tokens.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: service_tokens
+          path: cdk-infrastructure/service_tokens.json
+
+      # Step 10: Install CDK and other dependencies in the cdk-infrastructure directory
+      - name: Install CDK and other dependencies
+        run: npm ci
+        working-directory: ./cdk-infrastructure
+
+      # Step 11: Configure AWS credentials using repository secrets
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      # Step 12: Download the service_tokens.json artifact
+      - name: Download service_tokens.json
+        uses: actions/download-artifact@v4
+        with:
+          name: service_tokens
+          path: cdk-infrastructure/
+
+      # Step 13: Synthesize the CDK stack to create AWS CloudFormation templates
+      - name: Synthesize CDK Stack
+        run: npx cdk synth -c configfile=service_tokens.json
+        working-directory: ./cdk-infrastructure
+
+      # Step 14: Bootstrap the CDK stack to set up resources needed for deployment
+      - name: Bootstrap CDK Stack
+        run: npx cdk bootstrap -c configfile=service_tokens.json
+        working-directory: ./cdk-infrastructure
+
+      # Step 15: Deploy the ECR Repository Stack to AWS
+      - name: Deploy ECRRepositoryStack to AWS
+        run: npx cdk deploy ECRRepositoryStack --require-approval=never -c configfile=service_tokens.json
+        working-directory: ./cdk-infrastructure
+
+      # Step 16: Login to Amazon ECR to push Docker images
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      # Step 17: Build and push Docker images for each service
+      - name: Build and push Docker images
+        run: |
+          for service in ./services/*/ ; do
+            service_name=$(basename "$service")
+            ecr_repo="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/$service_name"
+            echo "Building Docker image for $service_name"
+            docker build -t "$ecr_repo:latest" "$service"
+            echo "Pushing Docker image to ECR for $service_name"
+            docker push "$ecr_repo:latest"
+          done
+
+      # Step 18: Deploy the Infrastructure Stack to AWS
+      - name: Deploy InfrastructureStack to AWS
+        run: npx cdk deploy InfrastructureStack --require-approval=never -c configfile=service_tokens.json
+        working-directory: ./cdk-infrastructure
+
+      # Step 19: Update ECS services to use the latest Docker images
+      - name: Update ECS Services to get the most recent image
+        run: |
+          for service in ./services/*/ ; do
+            service_name=$(basename "$service")
+            aws ecs update-service --cluster PAYMENT-SERVICE-cluster --service "$service_name" --force-new-deployment
+          done
+
+      # Step 20: Retrieve the DNS for services and update Diagrid app IDs
+      - name: Retrieve service DNS and update appIDs
+        run: |
+          set -e
+          json_array="[]"
+          for service in ./services/*/ ; do
+            service_name=$(basename "$service")
+            alb_name="${service_name}-ALB"
+            alb_dns=$(aws elbv2 describe-load-balancers --names "$alb_name" --query "LoadBalancers[0].DNSName" --output text)
+            echo "ALB DNS for $service_name: $alb_dns"
+
+            json_object=$(jq -n \
+              --arg service "$service_name" \
+              --arg alb_dns "$alb_dns" \
+              '{service: $service, url: $alb_dns}')
+
+            json_array=$(echo "$json_array" | jq --argjson obj "$json_object" '. += [$obj]')
+          done
+
+          echo "$json_array" | jq . > alb_services.json
+          echo "alb_services=$json_array" >> $GITHUB_ENV
+
+          echo "JSON Array:"
+          cat alb_services.json
+
+      # Step 21: Update the Catalyst API public endpoint for each service in Diagrid
+      - name: Update Diagrid app endpoints
+        run: |
+          json_array=$(cat alb_services.json)
+          for row in $(echo "$json_array" | jq -r '.[] | @base64'); do
+            _jq() {
+              echo "$row" | base64 --decode | jq -r "$1"
+            }
+
+            service=$(_jq '.service')
+            alb_dns=$(_jq '.url')
+            diagrid appid update "$service" --app-endpoint "http://$alb_dns" -w --api-key "${{ secrets.DIAGRID_API_KEY }}"
+
+            echo "Updated Diagrid app for service: $service, with ALB DNS: $alb_dns"
+          done

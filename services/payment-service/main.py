@@ -9,7 +9,7 @@ from stripe import StripeClient, StripeError
 
 import logging
 from model.payment_model import Status, PaymentModel
-import dapr.ext.workflow as wf
+
 
 app = FastAPI()
 base_url = os.getenv("DAPR_HTTP_ENDPOINT", "http://localhost")
@@ -20,9 +20,6 @@ stripe_secret = os.getenv("STRIPE_SECRET_KEY", "")
 logging.basicConfig(level=logging.INFO)
 
 client = StripeClient(stripe_secret)
-wfr = wf.WorkflowRuntime()
-wf_client = wf.DaprWorkflowClient()
-wfr.start()
 
 
 @app.get("/")
